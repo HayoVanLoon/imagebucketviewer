@@ -37,9 +37,6 @@ prep: check
 unprep: check
 	sed -i "s/$(GOOGLE_CLIENT_ID)/MY_GOOGLE_CLIENT_ID/g" files/index.html
 
-git-push: unprep
-	git push origin master
-
 clean:
 	go clean
 
