@@ -20,6 +20,10 @@ function doHttpGet(url, callback, errorCb) {
   sendHttpReq("GET", url, null, null, null, callback, errorCb);
 }
 
+function doHttpGetAuth(url, idToken, callback, errorCb) {
+  sendHttpReq("GET", url, null, null, {'Authorization': 'Bearer ' + idToken}, callback, errorCb);
+}
+
 function doHttpPostForm(url, body, callback, errorCb) {
   sendHttpReq("POST", url, body, "application/x-www-form-urlencoded", null, callback, errorCb);
 }
@@ -37,7 +41,7 @@ function sendHttpReq(method, url, body, contentType, headers, callback, errorCb)
     } else if (typeof (errorCb) === typeof (Function) &&
         httpReq.readyState === 4 &&
         httpReq.status >= 400) {
-      errorCb(httpReq.responseText);
+      errorCb(httpReq);
     }
   };
   httpReq.open(method, url, true);

@@ -33,7 +33,7 @@ RUN apk --update --no-cache add ca-certificates openssl
 WORKDIR /app
 
 COPY --from=builder /build/app /usr/local/bin
-COPY --from=builder /build/files/ ./files
+COPY --from=builder /build/files ./files
 
 RUN find .
 

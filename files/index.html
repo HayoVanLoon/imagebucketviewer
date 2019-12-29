@@ -2,50 +2,96 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="google-signin-client_id"
+          content="MY_GOOGLE_CLIENT_ID">
     <title>Image Bucket Viewer</title>
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet">
+    <link href="/static/css/main.css" rel="stylesheet">
 </head>
 <body>
 
 <div class="controls-div section">
     <div class="row">
-        <div class="col s12 m4">
-            <input class="bucket-input input-field" placeholder="bucket">
+
+        <div class="col s6 m3 l1">
+            <div class="g-signin2" data-onsuccess="onSignIn"></div>
         </div>
-        <div class="col s12 m7">
+        <div class="col s6 m3 l1">
+            <a class="btn" href="#" onclick="signOut();">Sign out</a>
+        </div>
+        <div class="col s12 m6 l4">
             <input class="prefix-input input-field" placeholder="prefix">
         </div>
-        <div class="col s12 m1">
-            <button class="fetch-btn btn">Fetch</button>
+        <div class="col s2 m2 l1">
+            <button class="fetch-btn btn">
+                <i class="material-icons">searcht</i>
+                <i class="material-icons">filter_list</i></button>
         </div>
-    </div>
+        <div class="col s4 m2 l1">
+            <input class="maxw-input input-field" type="number" step="100"
+                   placeholder="maximum width" value="">
+        </div>
+        <div class="col s4 m2 l1">
+            <input class="maxh-input input-field" type="number" step="100"
+                   placeholder="maximum height" value="">
+        </div>
+        <div class="col s2 m2 l1">
+            <button class="hide-btn btn">Hide</button>
+        </div>
 
-    <div class="row">
-        <div class="col s6 m2">
-            <button class="prev-btn btn">&lt; Previous</button>
-        </div>
-        <div class="col s6 m2">
-            <button class="next-btn btn"> Next &gt;</button>
-        </div>
-        <div class="col s6 m2">
-            <input class="maxdim-input input-field"
-                   placeholder="maximum width or height" value="1024">
-        </div>
     </div>
 </div>
 
 <div class="image-div section" hidden>
-    <div>
-        <img class="image-img" width="1024" src="#">
+    <div class="row">
+        <div class="col s1">
+            <div class="row">
+                <div class="col s12">
+                    <button class="prev-btn btn">
+                        <i class="material-icons">navigate_before</i>
+                    </button>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col s12">
+                    <button class="show-btn btn">
+                        <i class="material-icons">menu_open</i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col s10">
+            <img class="image-img">
+        </div>
+        <div class="col s1">
+            <div class="row">
+                <div class="col s12">
+                    <button class="next-btn btn">
+                        <i class="material-icons">navigate_next</i>
+                    </button>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col s12">
+                    <button class="rot-btn btn">
+                        <i class="material-icons">rotate_left</i>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="links-div section" hidden>
+<div class="links-div section container" hidden>
 </div>
 
 <script type="application/javascript" src="/static/js/utils.js"></script>
 <script type="application/javascript" src="/static/js/main.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+<script src="https://apis.google.com/js/platform.js" async defer></script>
+
 </body>
 </html>

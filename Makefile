@@ -12,44 +12,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PROJECT_NAME := imagebucketviewer
+MODULE_NAME := imagebucketviewer
 VERSION := v1
 
 # Docker-related
-IMAGE_NAME := $(PROJECT_NAME)_$(VERSION)
+IMAGE_NAME := $(MODULE_NAME)_$(VERSION)
 TAG := latest
 
-SERVICE_NAME := $(PROJECT_NAME)-$(VERSION)
-SERVICE_USER_DISPLAY=Image Bucket Viewer
+SERVICE_NAME := $(MODULE_NAME)-$(VERSION)
 
 
-.PHONY:
+.PHONY: clean check
 
-all: clean build push-gcr deploy smoke-test
+all: clean build push-gcr deploy
+
+check:
+ifndef IMAGE_BUCKET
+	$(error IMAGE_BUCKET not set)
+endif
+
+prep: check
+	sed -i "s/MY_GOOGLE_CLIENT_ID/$(GOOGLE_CLIENT_ID)/g" files/index.html
+
+unprep: check
+	sed -i "s/$(GOOGLE_CLIENT_ID)/MY_GOOGLE_CLIENT_ID/g" files/index.html
+
+git-push: unprep
+	git push origin master
 
 clean:
 	go clean
 
+run: check
+	export CLIENT_ID=$(GOOGLE_CLIENT_ID) && export IMAGE_BUCKET=$(IMAGE_BUCKET) && \
+	go run server.go
+
 build:
 	docker build -t $(IMAGE_NAME) .
 
-run:
-	go run server.go
-
 docker-run:
-	docker run --network="host" $(IMAGE_NAME)
+	docker run \
+		--network="host" \
+		--mount src=$(PWD)/secrets,dst=/vol,readonly,type=bind \
+		-e "GOOGLE_APPLICATION_CREDENTIALS=/vol/credentials.json" \
+		-e CLIENT_ID=$(GOOGLE_CLIENT_ID) \
+		-e IMAGE_BUCKET=$(IMAGE_BUCKET) \
+		$(IMAGE_NAME)
 
 push-gcr:
 	docker tag $(IMAGE_NAME) gcr.io/$(GOOGLE_PROJECT_ID)/$(IMAGE_NAME):$(TAG)
 	docker push gcr.io/$(GOOGLE_PROJECT_ID)/$(IMAGE_NAME)
 
+make-service-account:
+	gcloud iam service-accounts create "$(SERVICE_NAME)"
+
 deploy:
-	gcloud iam service-accounts create $(SERVICE_NAME) \
-		--description="$(SERVICE_USER_DESCRIPTION)" \
-		--display-name "$(SERVICE_USER_DISPLAY)"
-	gcloud beta run deploy $(SERVICE_NAME) --image=gcr.io/$(GOOGLE_PROJECT_ID)/$(IMAGE_NAME) \
+	gcloud beta run deploy $(SERVICE_NAME) \
+		--image=gcr.io/$(GOOGLE_PROJECT_ID)/$(IMAGE_NAME) \
 		--region=europe-west1 \
 		--memory=128Mi \
 		--platform=managed \
-		--no-allow-unauthenticated \
-		--service-account="$(SERVICE_NAME)@$(GOOGLE_PROJECT_ID).iam.gserviceaccount.com"
+		--allow-unauthenticated \
+		--max-instances=1 \
+		--service-account="$(SERVICE_NAME)@$(GOOGLE_PROJECT_ID).iam.gserviceaccount.com" \
+		--set-env-vars="CLIENT_ID=$(GOOGLE_CLIENT_ID),IMAGE_BUCKET=$(IMAGE_BUCKET)"
+
+destroy:
+	gcloud iam service-accounts delete "$(SERVICE_NAME)@$(GOOGLE_PROJECT_ID).iam.gserviceaccount.com"
+	gcloud run services delete $(SERVICE_NAME) \
+			--region=europe-west1 \
+    		--platform=managed
+

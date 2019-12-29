@@ -20,39 +20,48 @@ import (
 	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
+	"github.com/coreos/go-oidc"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
+
+const storageServiceUrl = "https://storage.cloud.google.com"
+
+type handler struct {
+	tokenVerifier *oidc.IDTokenVerifier
+	bucket string
+}
 
 type ListImageLinksResponse struct {
 	ImageLinks []string `json:"imageLinks"`
 }
 
-func handleListImageLinks(w http.ResponseWriter, r *http.Request) {
-	bName, prefix := getParams(r.URL.Path)
-	ls := getLinks(bName, prefix)
+var clientId string
+
+func (h *handler) handleListImageLinks(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	prefix := getParams(r.URL.Path)
+	ls := getLinks(ctx, h.bucket, prefix)
 	resp := ListImageLinksResponse{ImageLinks: ls}
 	writeResponse(w, resp)
 }
 
-func getParams(path string) (bName string, prefix string) {
-	var xs = path[9:]
-	pStart := strings.Index(xs, "/prefixes/")
-	if pStart < 0 {
-		bName = xs
-		prefix = ""
+func getParams(path string) string {
+	if len(path) == 13 {
+		return ""
 	} else {
-		bName = xs[0:pStart]
-		prefix = xs[pStart+10:]
+		prefix := path[13:]
+		if prefix == "/" {
+			return ""
+		} else {
+			return prefix
+		}
 	}
-	return
 }
 
-func getLinks(bName, prefix string) []string {
-	ctx := context.Background()
-	// TODO: fetch credentials when not running locally
-	client, err := storage.NewClient(ctx)
+func getLinks(ctx context.Context, bName, prefix string) []string {
+	client, err := createClient(ctx)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -64,9 +73,8 @@ func getLinks(bName, prefix string) []string {
 	for ; ; {
 		oa, err := iter.Next()
 		if oa != nil {
-			// TODO: extend & improve
-			if strings.ToLower(oa.Name[len(oa.Name)-4:]) == ".jpg" {
-				ls = append(ls, "https://storage.cloud.google.com/"+bName+"/"+oa.Name)
+			if isImage(oa.Name) {
+				ls = append(ls, storageServiceUrl+"/"+bName+"/"+oa.Name)
 			}
 		}
 		if err != nil {
@@ -74,6 +82,18 @@ func getLinks(bName, prefix string) []string {
 		}
 	}
 	return ls
+}
+
+func createClient(ctx context.Context) (*storage.Client, error) {
+	// TODO: fetch credentials when not running locally
+	return storage.NewClient(ctx)
+}
+
+func isImage(name string) bool {
+	s := name[strings.LastIndex(name, "."):]
+	l := strings.ToLower(s)
+	// TODO: maybe use library
+	return l == ".jpg" || l == ".png" || l == ".bmp" || l == ".svg"
 }
 
 func writeResponse(w http.ResponseWriter, resp interface{}) {
@@ -90,9 +110,79 @@ func writeResponse(w http.ResponseWriter, resp interface{}) {
 	}
 }
 
-func main() {
-	http.Handle("/", http.FileServer(http.Dir("./files")))
-	http.HandleFunc("/buckets/", handleListImageLinks)
+func getTokenVerifier(clientId string) (*oidc.IDTokenVerifier, error) {
+	ctx := context.Background()
+	authProvider, err := oidc.NewProvider(ctx, "https://accounts.google.com")
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	return authProvider.Verifier(&oidc.Config{ClientID: clientId}), nil
+}
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	if h.allowAccess(ctx, r) {
+		h.handleListImageLinks(ctx, w, r)
+	} else {
+		w.WriteHeader(403)
+		_, _ = w.Write([]byte("you are not authorised for this resource"))
+	}
+}
+
+func (h *handler) allowAccess(ctx context.Context, r *http.Request) bool {
+	raw := getRawToken(r)
+	if raw == "" {
+		return false
+	}
+	token, err := h.tokenVerifier.Verify(ctx, raw)
+	var claims struct {
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+	}
+	if err != nil {
+		log.Print(err.Error())
+		return false
+	}
+	err = token.Claims(&claims)
+	if err != nil {
+		log.Print(err.Error())
+		return false
+	}
+	return claims.EmailVerified && claims.Email == "hayovanloon@gmail.com"
+}
+
+func getRawToken(r *http.Request) string {
+	if auth := r.Header.Get("Authorization"); len(auth) > 20 {
+		if strings.ToLower(auth[0:7]) == "bearer " {
+			return auth[7:]
+		}
+	}
+	return ""
+}
+
+func main() {
+	clientId = os.Getenv("CLIENT_ID")
+	if clientId == "" {
+		log.Fatal("no environment variable for client id specified")
+	}
+
+	tokenVerifier, err := getTokenVerifier(clientId)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bucket := os.Getenv("IMAGE_BUCKET")
+	if bucket == "" {
+		log.Fatal("no environment variable for bucket specified")
+	}
+
+	http.Handle("/v1/prefixes/", &handler{tokenVerifier, bucket})
+	http.Handle("/", http.FileServer(http.Dir("./files")))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

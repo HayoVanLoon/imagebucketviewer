@@ -51,6 +51,7 @@
 
 **/tmp
 **/secrets
+**/private
 **.credentials
 **.credentials.json
 
