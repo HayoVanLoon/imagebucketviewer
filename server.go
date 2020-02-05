@@ -31,7 +31,7 @@ const storageServiceUrl = "https://storage.cloud.google.com"
 
 type handler struct {
 	tokenVerifier *oidc.IDTokenVerifier
-	bucket string
+	bucket        string
 }
 
 type ListImageLinksResponse struct {
@@ -70,7 +70,7 @@ func getLinks(ctx context.Context, bName, prefix string) []string {
 	iter := b.Objects(ctx, &storage.Query{Prefix: prefix})
 
 	ls := make([]string, 0)
-	for ; ; {
+	for {
 		oa, err := iter.Next()
 		if oa != nil {
 			if isImage(oa.Name) {
@@ -149,7 +149,7 @@ func (h *handler) allowAccess(ctx context.Context, r *http.Request) bool {
 		log.Print(err.Error())
 		return false
 	}
-	return claims.EmailVerified && claims.Email == "hayovanloon@gmail.com"
+	return claims.EmailVerified && claims.Email == "test@example.com"
 }
 
 func getRawToken(r *http.Request) string {
